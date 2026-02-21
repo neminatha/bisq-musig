@@ -1,6 +1,28 @@
 use std::borrow::Cow;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+        let protoc = protoc_bin_vendored::protoc_bin_path()
+            .expect("Failed to fetch vendored protoc");
+
+        // Dump protoc version for debugging and CI logs.
+        match std::process::Command::new(&protoc).arg("--version").output() {
+            Ok(out) if out.status.success() => {
+                if let Ok(ver) = String::from_utf8(out.stdout) {
+                    println!("cargo:warning=protoc found at {:?}: {}", protoc, ver.trim());
+                }
+            }
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                println!("cargo:warning=protoc at {:?} returned non-zero ({}): {}", protoc, out.status, stderr);
+            }
+            Err(e) => {
+                println!("cargo:warning=failed to execute protoc at {:?}: {}", protoc, e);
+            }
+        }
+
+         // TODO: Audit that the environment access only happens in single-threaded code.
+         unsafe { std::env::set_var("PROTOC", protoc) };
+
     tonic_prost_build::configure()
         // Add Serde serialization for walletrpc request types...
         .serde_serialized_types(&[
